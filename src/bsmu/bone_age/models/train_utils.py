@@ -32,8 +32,8 @@ class DataGenerator(keras.utils.Sequence):
         self.ages = np.zeros(shape=(self.number_of_samples, 1), dtype=np.float32)
 
         for index, csv_row in enumerate(data_csv.values):
-            image_id, age, male = csv_row
-            print(f'#{index} image_id: {image_id} age: {age} male: {male}')
+            image_id, male, age = csv_row
+            print(f'#{index} image_id: {image_id} male: {male} age: {age}')
 
             self.image_ids[index, 0] = image_id
             self.males[index, 0] = male
