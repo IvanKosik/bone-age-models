@@ -1,15 +1,20 @@
 import math
+import typing
 from pathlib import Path
 
 import keras
 import numpy as np
 import pandas as pd
 import skimage.io
+from keras import backend, optimizers, losses, metrics
+
+from bsmu.bone_age.models import constants
+from bsmu.bone_age.models import debug_utils
 
 
 class DataGenerator(keras.utils.Sequence):
-    def __init__(self, image_dir: Path, data_csv_path: Path, batch_size, input_image_shape,
-                 shuffle, preprocess_batch_images, augmentation_transforms=None):
+    def __init__(self, image_dir: Path, data_csv_path: Path, batch_size: int, input_image_shape: tuple,
+                 shuffle: bool, preprocess_batch_images: typing.Callable, augmentation_transforms=None):
         assert len(input_image_shape) == 3, 'Input image shape must have 3 dims: width, height and number of channels'
 
         self.image_dir = image_dir
@@ -94,3 +99,74 @@ def normalized_image(image):
 def augmentate_image(image, transforms):
     augmentation_results = transforms(image=image)
     return augmentation_results['image']
+
+
+def train_model(model, train_generator, valid_generator, model_path, log_path, epochs=100, lr=1e-4):
+    debug_utils.print_title(train_model.__name__)
+
+    monitor = 'val_loss'
+    checkpoint_callback = keras.callbacks.ModelCheckpoint(filepath=str(model_path), monitor=monitor,
+                                                          verbose=1, save_best_only=True)
+    reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(monitor=monitor, factor=0.75, patience=3,
+                                                           verbose=1, min_lr=1e-6)
+    early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=20)
+    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(log_path), write_graph=False)
+
+    callbacks = [checkpoint_callback, reduce_lr_callback, early_stopping_callback, tensorboard_callback]
+
+    model.compile(optimizer=optimizers.Adam(lr=lr), loss=losses.mae, metrics=[metrics.mae])
+
+    model.fit_generator(generator=train_generator,
+                        epochs=epochs,
+                        callbacks=callbacks,
+                        validation_data=valid_generator)
+
+
+def test_generator(generator):
+    debug_utils.print_title(test_generator.__name__)
+
+    generator_len = len(generator)
+    print('generator_len (number of batches per epoch):', generator_len)
+
+    batch = generator.__getitem__(int(generator_len / 2))
+    batch_input, batch_ages = batch
+    batch_images, batch_males = batch_input[0], batch_input[1]
+    debug_utils.print_info(batch_images, 'batch_images')
+    debug_utils.print_info(batch_males, 'batch_males')
+    debug_utils.print_info(batch_ages, 'batch_ages')
+
+    # Save all images in batches
+    for batch_image_index in range(len(batch_images)):
+        image = batch_images[batch_image_index][...]
+        male = batch_males[batch_image_index][0]
+        age = batch_ages[batch_image_index][0]
+
+        debug_utils.print_info(image, 'image')
+        print(male, 'male')
+        print(age, 'age')
+
+        image = normalized_image(image)
+
+        skimage.io.imsave(str(constants.TEST_GENERATOR_DIR / f'{batch_image_index}.png'), image)
+
+
+def model_output_function(model, input_layer_names: list, output_layer_names: list):
+    inputs = [model.get_layer(input_layer_name).input for input_layer_name in input_layer_names]
+    outputs = [model.get_layer(output_layer_name).output for output_layer_name in output_layer_names]
+    return backend.function(inputs, outputs)
+
+
+def build_cam(conv, pooling):
+    # cam = np.zeros(shape=conv.shape[:2], dtype=np.float32)
+    cam = np.copy(conv)
+    for feature_map_index in range(cam.shape[2]):
+        cam[..., feature_map_index] *= pooling[feature_map_index]
+
+    # print_info(cam, 'cam ---0---')
+    cam = np.mean(cam, axis=-1)
+    # print_info(cam, 'cam ---1--- mean')
+    cam = np.maximum(cam, 0)
+    # print_info(cam, 'cam ---2--- maximum')
+    cam = cam / np.max(cam)
+    # print_info(cam, 'cam ---3--- devide to max')
+    return cam
