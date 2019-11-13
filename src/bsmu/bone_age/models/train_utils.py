@@ -6,10 +6,9 @@ import keras
 import numpy as np
 import pandas as pd
 import skimage.io
-from keras import backend, optimizers, losses, metrics
+from keras import optimizers, losses, metrics
 
-from bsmu.bone_age.models import constants
-from bsmu.bone_age.models import debug_utils
+from bsmu.bone_age.models import constants, debug_utils, image_utils
 
 
 class DataGenerator(keras.utils.Sequence):
@@ -62,13 +61,13 @@ class DataGenerator(keras.utils.Sequence):
 
             image_path = self.image_dir / f'{image_id}.png'
             image = skimage.io.imread(str(image_path))
-            image = normalized_image(image)
+            image = image_utils.normalized_image(image)
 
             if self.augmentation_transforms is not None:
                 image = augmentate_image(image, self.augmentation_transforms)
 
                 # Normalize once again image to [0, 1] after augmentation
-                image = normalized_image(image)
+                image = image_utils.normalized_image(image)
 
             image = image * 255
             image = np.stack((image,) * self.input_image_shape[2], axis=-1)
@@ -84,16 +83,6 @@ class DataGenerator(keras.utils.Sequence):
         """Shuffle files after each epoch"""
         if self.shuffle:
             np.random.shuffle(self.sample_indexes)
-
-
-def normalized_image(image):
-    image_min = image.min()
-    if image_min != 0:
-        image = image - image_min
-    image_max = image.max()
-    if image_max != 0 and image_max != 1:
-        image = image / image_max
-    return image
 
 
 def augmentate_image(image, transforms):
@@ -145,28 +134,6 @@ def test_generator(generator):
         print(male, 'male')
         print(age, 'age')
 
-        image = normalized_image(image)
+        image = image_utils.normalized_image(image)
 
         skimage.io.imsave(str(constants.TEST_GENERATOR_DIR / f'{batch_image_index}.png'), image)
-
-
-def model_output_function(model, input_layer_names: list, output_layer_names: list):
-    inputs = [model.get_layer(input_layer_name).input for input_layer_name in input_layer_names]
-    outputs = [model.get_layer(output_layer_name).output for output_layer_name in output_layer_names]
-    return backend.function(inputs, outputs)
-
-
-def build_cam(conv, pooling):
-    # cam = np.zeros(shape=conv.shape[:2], dtype=np.float32)
-    cam = np.copy(conv)
-    for feature_map_index in range(cam.shape[2]):
-        cam[..., feature_map_index] *= pooling[feature_map_index]
-
-    # print_info(cam, 'cam ---0---')
-    cam = np.mean(cam, axis=-1)
-    # print_info(cam, 'cam ---1--- mean')
-    cam = np.maximum(cam, 0)
-    # print_info(cam, 'cam ---2--- maximum')
-    cam = cam / np.max(cam)
-    # print_info(cam, 'cam ---3--- devide to max')
-    return cam
