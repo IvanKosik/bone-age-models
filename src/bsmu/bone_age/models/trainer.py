@@ -27,10 +27,12 @@ class ModelTrainer:
     OUTPUT_CONV_LAYER_NAME = ''
     OUTPUT_POOLING_LAYER_NAME = ''
 
-    def __init__(self, epochs: int = 100, lr: float = 1e-4, preprocess_batch_images: typing.Callable = None):
+    def __init__(self, epochs: int = 100, lr: float = 1e-4, preprocess_batch_images: typing.Callable = None,
+                 apply_age_normalization: bool = True):
         self.epochs = epochs
         self.lr = lr
         self.preprocess_batch_images = preprocess_batch_images
+        self.apply_age_nomalization = apply_age_normalization
 
         self.model = None
 
@@ -90,7 +92,7 @@ class ModelTrainer:
             layer.trainable = True
 
     def _create_callbacks(self):
-        monitor = 'val_loss'
+        monitor = 'val_age_mae' if self.apply_age_nomalization else 'val_loss'
         checkpoint_callback = keras.callbacks.ModelCheckpoint(filepath=str(self.model_path), monitor=monitor,
                                                               verbose=1, save_best_only=True)
         reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(monitor=monitor, factor=0.75, patience=3,
@@ -110,7 +112,7 @@ class ModelTrainer:
         self._train_generator = train_utils.DataGenerator(
             self.IMAGE_DIR, self.TRAIN_DATA_CSV_PATH, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
             shuffle=True, preprocess_batch_images=self.preprocess_batch_images,
-            augmentation_transforms=self.AUGMENTATION_TRANSFORMS)
+            augmentation_transforms=self.AUGMENTATION_TRANSFORMS, apply_age_normalization=self.apply_age_nomalization)
 
     @property
     def valid_generator(self):
@@ -121,7 +123,8 @@ class ModelTrainer:
     def _create_valid_generator(self):
         self._valid_generator = train_utils.DataGenerator(
             self.IMAGE_DIR, self.VALID_DATA_CSV_PATH, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
-            shuffle=False, preprocess_batch_images=self.preprocess_batch_images)
+            shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
+            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization)
 
     @property
     def test_generator(self):
@@ -132,12 +135,14 @@ class ModelTrainer:
     def _create_test_generator(self):
         self._test_generator = train_utils.DataGenerator(
             self.IMAGE_DIR, self.TEST_DATA_CSV_PATH, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
-            shuffle=False, preprocess_batch_images=self.preprocess_batch_images)
+            shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
+            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization)
 
     def _train_model(self):
         debug_utils.print_title(self._train_model.__name__)
 
-        self.model.compile(optimizer=optimizers.Adam(lr=self.lr), loss=losses.mae, metrics=[metrics.mae])
+        metric = train_utils.age_mae if self.apply_age_nomalization else metrics.mae
+        self.model.compile(optimizer=optimizers.Adam(lr=self.lr), loss=losses.mae, metrics=[metric])
         self.model.fit_generator(generator=self.train_generator,
                                  epochs=self.epochs,
                                  callbacks=self.callbacks,

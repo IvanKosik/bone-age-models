@@ -6,14 +6,15 @@ import keras
 import numpy as np
 import pandas as pd
 import skimage.io
-from keras import optimizers, losses, metrics
+from keras import losses
 
-from bsmu.bone_age.models import constants, debug_utils, image_utils
+from bsmu.bone_age.models import image_utils
 
 
 class DataGenerator(keras.utils.Sequence):
     def __init__(self, image_dir: Path, data_csv_path: Path, batch_size: int, input_image_shape: tuple,
-                 shuffle: bool, preprocess_batch_images: typing.Callable, augmentation_transforms=None):
+                 shuffle: bool, preprocess_batch_images: typing.Callable, augmentation_transforms=None,
+                 apply_age_normalization: bool = True):
         assert len(input_image_shape) == 3, 'Input image shape must have 3 dims: width, height and number of channels'
 
         self.image_dir = image_dir
@@ -38,6 +39,11 @@ class DataGenerator(keras.utils.Sequence):
             self.males[index, 0] = male
             self.ages[index, 0] = age
 
+        self._zero_image_age = 0
+        if apply_age_normalization:
+            self.ages = normalized_age(self.ages)
+            self._zero_image_age = normalized_age(self._zero_image_age)
+
         self.sample_indexes = np.arange(self.number_of_samples)
         self.on_epoch_end()
 
@@ -49,7 +55,7 @@ class DataGenerator(keras.utils.Sequence):
         """Generate one batch of data"""
         batch_images = np.zeros(shape=(self.batch_size, *self.input_image_shape), dtype=np.float32)
         batch_males = np.zeros(shape=(self.batch_size, 1), dtype=np.uint8)
-        batch_ages = np.zeros(shape=(self.batch_size, 1), dtype=np.float32)
+        batch_ages = np.full(shape=(self.batch_size, 1), fill_value=self._zero_image_age, dtype=np.float32)
 
         # Generate image indexes of the batch
         batch_sample_indexes = self.sample_indexes[batch_index * self.batch_size:(batch_index + 1) * self.batch_size]
@@ -90,50 +96,14 @@ def augmentate_image(image, transforms):
     return augmentation_results['image']
 
 
-def train_model(model, train_generator, valid_generator, model_path, log_path, epochs=100, lr=1e-4):
-    debug_utils.print_title(train_model.__name__)
-
-    monitor = 'val_loss'
-    checkpoint_callback = keras.callbacks.ModelCheckpoint(filepath=str(model_path), monitor=monitor,
-                                                          verbose=1, save_best_only=True)
-    reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(monitor=monitor, factor=0.75, patience=3,
-                                                           verbose=1, min_lr=1e-6)
-    early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=20)
-    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(log_path), write_graph=False)
-
-    callbacks = [checkpoint_callback, reduce_lr_callback, early_stopping_callback, tensorboard_callback]
-
-    model.compile(optimizer=optimizers.Adam(lr=lr), loss=losses.mae, metrics=[metrics.mae])
-
-    model.fit_generator(generator=train_generator,
-                        epochs=epochs,
-                        callbacks=callbacks,
-                        validation_data=valid_generator)
+def normalized_age(age):
+    """
+    Normalize age to [-1, 1]
+    """
+    return age / 120 - 1
 
 
-def test_generator(generator):
-    debug_utils.print_title(test_generator.__name__)
-
-    generator_len = len(generator)
-    print('generator_len (number of batches per epoch):', generator_len)
-
-    batch = generator.__getitem__(int(generator_len / 2))
-    batch_input, batch_ages = batch
-    batch_images, batch_males = batch_input[0], batch_input[1]
-    debug_utils.print_info(batch_images, 'batch_images')
-    debug_utils.print_info(batch_males, 'batch_males')
-    debug_utils.print_info(batch_ages, 'batch_ages')
-
-    # Save all images in batches
-    for batch_image_index in range(len(batch_images)):
-        image = batch_images[batch_image_index][...]
-        male = batch_males[batch_image_index][0]
-        age = batch_ages[batch_image_index][0]
-
-        debug_utils.print_info(image, 'image')
-        print(male, 'male')
-        print(age, 'age')
-
-        image = image_utils.normalized_image(image)
-
-        skimage.io.imsave(str(constants.TEST_GENERATOR_DIR / f'{batch_image_index}.png'), image)
+def age_mae(y_true, y_pred):
+    y_true = (y_true + 1) * 120
+    y_pred = (y_pred + 1) * 120
+    return losses.mean_absolute_error(y_true, y_pred)

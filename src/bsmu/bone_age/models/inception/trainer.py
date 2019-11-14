@@ -33,7 +33,8 @@ class InceptionModelTrainer(trainer.ModelTrainer):
     OUTPUT_POOLING_LAYER_NAME = 'encoder_pooling'
 
     def __init__(self, epochs: int = 100, lr: float = 1e-4):
-        super().__init__(epochs, lr, preprocess_batch_images=inception_v3.preprocess_input)
+        super().__init__(epochs, lr, preprocess_batch_images=inception_v3.preprocess_input,
+                         apply_age_normalization=False)
 
     def create_model(self):
         super().create_model()
