@@ -24,6 +24,12 @@ class XceptionModelTrainer(trainer.ModelTrainer):
             border_mode=cv2.BORDER_CONSTANT, rotate_limit=20, shift_limit=0.2, scale_limit=0.2,
             p=1.0),  # TODO try: interpolation=cv2.INTER_CUBIC
         albumentations.HorizontalFlip(p=0.5),
+
+        # Additional augmentations
+        albumentations.RandomGamma(p=0.5),
+        albumentations.IAASharpen(p=0.5),
+        albumentations.OpticalDistortion(p=0.5),
+        albumentations.RandomBrightnessContrast(p=0.2)
     ], p=1.0)
 
     INPUT_IMAGE_LAYER_NAME = 'input_1'
