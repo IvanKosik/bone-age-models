@@ -26,13 +26,15 @@ class ModelTrainer:
     OUTPUT_AGE_LAYER_NAME = ''
     OUTPUT_CONV_LAYER_NAME = ''
     OUTPUT_POOLING_LAYER_NAME = ''
+    OUTPUT_IMAGE_CAM_OVERLAY_LAYER_NAME = ''
 
     def __init__(self, epochs: int = 100, lr: float = 1e-4, preprocess_batch_images: typing.Callable = None,
-                 apply_age_normalization: bool = True):
+                 apply_age_normalization: bool = True, model_custom_objects=None):
         self.epochs = epochs
         self.lr = lr
         self.preprocess_batch_images = preprocess_batch_images
         self.apply_age_nomalization = apply_age_normalization
+        self.model_custom_objects = model_custom_objects
 
         self.model = None
 
@@ -82,7 +84,8 @@ class ModelTrainer:
     def load_model(self):
         debug_utils.print_title(self.load_model.__name__)
 
-        self.model = keras.models.load_model(str(self.model_path), compile=False)
+        self.model = keras.models.load_model(
+            str(self.model_path), custom_objects=self.model_custom_objects, compile=False)
 
     def _freeze_layers(self):
         debug_utils.print_title(self._freeze_layers.__name__)
@@ -201,8 +204,9 @@ class ModelTrainer:
 
     def generate_image_cam(self, image, male: bool):
         input_batch = self.create_batch_from_one_sample(image, male)
-        cam_batch, output_age_batch = self.generate_cam_batch(input_batch)
-        return cam_batch[0], output_age_batch[0]
+        cam_batch, output_age_batch, image_cam_overlay_batch = self.generate_cam_batch(input_batch)
+        return cam_batch[0], output_age_batch[0], \
+            None if image_cam_overlay_batch is None else image_cam_overlay_batch[0]
 
     def generate_cam_batch(self, input_batch):
         assert self.INPUT_IMAGE_LAYER_NAME and self.INPUT_MALE_LAYER_NAME \
@@ -210,11 +214,12 @@ class ModelTrainer:
                'define all needed layer names to generate activation map'
         return cam_utils.generate_cam_batch(
             input_batch, self.model, self.INPUT_IMAGE_LAYER_NAME, self.INPUT_MALE_LAYER_NAME,
-            self.OUTPUT_AGE_LAYER_NAME, self.OUTPUT_CONV_LAYER_NAME, self.OUTPUT_POOLING_LAYER_NAME)
+            self.OUTPUT_AGE_LAYER_NAME, self.OUTPUT_CONV_LAYER_NAME, self.OUTPUT_POOLING_LAYER_NAME,
+            self.OUTPUT_IMAGE_CAM_OVERLAY_LAYER_NAME)
 
     def generate_image_cam_overlay(self, image, male: bool):
-        cam, age = self.generate_image_cam(image, male)
-        overlay_result = cam_utils.overlay_cam(image, cam)
+        cam, age, image_cam_overlay = self.generate_image_cam(image, male)
+        overlay_result = cam_utils.overlay_cam(image if image_cam_overlay is None else image_cam_overlay, cam)
         return overlay_result, age
 
     def test_model(self):
