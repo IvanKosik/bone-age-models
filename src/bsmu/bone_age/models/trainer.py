@@ -217,10 +217,15 @@ class ModelTrainer:
             self.OUTPUT_AGE_LAYER_NAME, self.OUTPUT_CONV_LAYER_NAME, self.OUTPUT_POOLING_LAYER_NAME,
             self.OUTPUT_IMAGE_CAM_OVERLAY_LAYER_NAME)
 
-    def generate_image_cam_overlay(self, image, male: bool):
+    def generate_image_cam_overlay(self, image, male: bool, cam_threshold):
         cam, age, image_cam_overlay = self.generate_image_cam(image, male)
-        overlay_result = cam_utils.overlay_cam(image if image_cam_overlay is None else image_cam_overlay, cam)
+        overlay_result = cam_utils.overlay_cam(
+            image if image_cam_overlay is None else image_cam_overlay, cam, cam_threshold)
         return overlay_result, age
+
+    def crop_image_to_cam(self, image_src, image, male: bool, threshold):
+        cam, age, image_cam_overlay = self.generate_image_cam(image, male)
+        return image_utils.crop_important_image_region(image_src, cam, threshold)
 
     def test_model(self):
         ...
