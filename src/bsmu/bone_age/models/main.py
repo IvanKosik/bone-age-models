@@ -5,12 +5,14 @@ import pandas as pd
 import skimage.io
 import skimage.transform
 
-from bsmu.bone_age.models import constants
 from bsmu.bone_age.models import debug_utils
 from bsmu.bone_age.models import image_utils
+from bsmu.bone_age.models.dense_net import trainer
+
 # from bsmu.bone_age.models.inception import trainer
-from bsmu.bone_age.models.xception import trainer
+# from bsmu.bone_age.models.xception import trainer
 # from bsmu.bone_age.models.stn import trainer
+from bsmu.bone_age.models import constants
 
 
 PROJECT_PATH = Path('../../../../')
@@ -30,11 +32,11 @@ def test_image(model_trainer, image_path):
     print('result age:', age)
     skimage.io.imsave(str(OUTPUT_PATH / 'cam' / f'{image_path.stem}_heatmap.png'), heatmap)
 
-    cropped_to_cam = model_trainer.crop_image_to_cam(image_src, image, male=False, threshold=cam_threshold)
-    cropped_resized = skimage.transform.resize(
-        cropped_to_cam, model_trainer.model_input_image_size, anti_aliasing=True, order=1).astype(np.float32)
-    skimage.io.imsave(str(OUTPUT_PATH / 'cam' / f'{image_path.stem}_cropped.png'),
-                      image_utils.normalized_image(cropped_resized))
+    # cropped_to_cam = model_trainer.crop_image_to_cam(image_src, image, male=False, threshold=cam_threshold)
+    # cropped_resized = skimage.transform.resize(
+    #     cropped_to_cam, model_trainer.model_input_image_size, anti_aliasing=True, order=1).astype(np.float32)
+    # skimage.io.imsave(str(OUTPUT_PATH / 'cam' / f'{image_path.stem}_cropped.png'),
+    #                   image_utils.normalized_image(cropped_resized))
 
 
 def crop_images_to_cam(model_trainer, csv_path, cropped_path):
@@ -57,19 +59,21 @@ def crop_images_to_cam(model_trainer, csv_path, cropped_path):
 
 
 def main():
-    model_trainer = trainer.XceptionModelTrainer()
-    model_trainer.verify_generator(model_trainer.train_generator)
-    model_trainer.run()
-
-    exit()
+    model_trainer = trainer.DenseNetModelTrainer()
+    # model_trainer.verify_generator(model_trainer.train_generator)
+    # model_trainer.run()
+    #
+    # exit()
 
     model_trainer.load_model()
     model_trainer.model.summary(line_length=150)
 
+    data_frame_with_predictions = model_trainer.data_frame_with_predictions(constants.PART_TRAIN_DATA_CSV_PATH)
+    data_frame_with_predictions.to_csv(OUTPUT_PATH / 'predictions.csv', index=False)
+
     # cropped_path = Path('C:/MyDiskBackup/Projects/BoneAge/Data/CroppedImages500PartKeepCloseAspectRatio')
     # crop_images_to_cam(model_trainer, constants.PART_TRAIN_DATA_CSV_PATH, cropped_path)
     # crop_images_to_cam(model_trainer, constants.PART_VALID_DATA_CSV_PATH, cropped_path)
-
 
     # TEST_DATA_PATH = TEMP_PATH / 'test_data'
     # for test_image_path in TEST_DATA_PATH.iterdir():

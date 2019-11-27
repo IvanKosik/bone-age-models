@@ -4,6 +4,7 @@ import keras
 import numpy as np
 import skimage.io
 from keras import optimizers, losses, metrics
+import pandas as pd
 
 from bsmu.bone_age.models import constants, debug_utils, train_utils, cam_utils, image_utils
 
@@ -100,7 +101,7 @@ class ModelTrainer:
                                                               verbose=1, save_best_only=True)
         reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(monitor=monitor, factor=0.75, patience=3,
                                                                verbose=1, min_lr=1e-6)
-        early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=20)
+        early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=40)
         tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(self.log_path), write_graph=False)
 
         return [checkpoint_callback, reduce_lr_callback, early_stopping_callback, tensorboard_callback]
@@ -226,6 +227,25 @@ class ModelTrainer:
     def crop_image_to_cam(self, image_src, image, male: bool, threshold):
         cam, age, image_cam_overlay = self.generate_image_cam(image, male)
         return image_utils.crop_important_image_region(image_src, cam, threshold)
+
+    def data_frame_with_predictions(self, csv_path):
+        csv_data = pd.read_csv(str(csv_path))
+        data = csv_data.to_numpy()
+
+        generator = train_utils.DataGenerator(
+            self.IMAGE_DIR, csv_path, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
+            shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
+            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization)
+        predictions = self.model.predict_generator(generator=generator)
+        # Remove last rows (predictions for black images, which can be,
+        # if number of images is not divided by batch size)
+        predictions = predictions[:data.shape[0], ...]
+        if self.apply_age_nomalization:
+            predictions = train_utils.denormalized_age(predictions)
+
+        data_with_predictions = np.hstack((data, predictions))
+        column_labels = np.append(csv_data.columns, self.model_name)
+        return pd.DataFrame(data=data_with_predictions, columns=column_labels)
 
     def test_model(self):
         ...

@@ -103,7 +103,15 @@ def normalized_age(age):
     return age / 120 - 1
 
 
+def denormalized_age(age):
+    """
+    :param age: age in range [-1, 1]
+    :return: age in range [0, 240] (months)
+    """
+    return (age + 1) * 120
+
+
 def age_mae(y_true, y_pred):
-    y_true = (y_true + 1) * 120
-    y_pred = (y_pred + 1) * 120
+    y_true = denormalized_age(y_true)
+    y_pred = denormalized_age(y_pred)
     return losses.mean_absolute_error(y_true, y_pred)
