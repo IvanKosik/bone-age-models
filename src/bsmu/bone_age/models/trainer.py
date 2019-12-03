@@ -101,7 +101,7 @@ class ModelTrainer:
                                                               verbose=1, save_best_only=True)
         reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(monitor=monitor, factor=0.75, patience=3,
                                                                verbose=1, min_lr=1e-6)
-        early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=40)
+        early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=20)
         tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(self.log_path), write_graph=False)
 
         return [checkpoint_callback, reduce_lr_callback, early_stopping_callback, tensorboard_callback]

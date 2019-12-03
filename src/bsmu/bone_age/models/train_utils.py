@@ -14,7 +14,7 @@ from bsmu.bone_age.models import image_utils
 class DataGenerator(keras.utils.Sequence):
     def __init__(self, image_dir: Path, data_csv_path: Path, batch_size: int, input_image_shape: tuple,
                  shuffle: bool, preprocess_batch_images: typing.Callable, augmentation_transforms=None,
-                 apply_age_normalization: bool = True):
+                 apply_age_normalization: bool = True, combined_model: bool = False):
         assert len(input_image_shape) == 3, 'Input image shape must have 3 dims: width, height and number of channels'
 
         self.image_dir = image_dir
@@ -23,17 +23,23 @@ class DataGenerator(keras.utils.Sequence):
         self.shuffle = shuffle
         self.preprocess_batch_images = preprocess_batch_images
         self.augmentation_transforms = augmentation_transforms
+        self.combined_model = combined_model
 
-        data_csv = pd.read_csv(str(data_csv_path))
-        self.number_of_samples = len(data_csv.index)
+        data_frame = pd.read_csv(str(data_csv_path))
+        data = data_frame.to_numpy()
+        if not combined_model:
+            data = data[:, :3]  # remove prediction columns
+        self.number_of_samples = len(data)
 
         self.image_ids = np.zeros(shape=(self.number_of_samples, 1), dtype=np.uint32)
         self.males = np.zeros(shape=(self.number_of_samples, 1), dtype=np.uint8)
         self.ages = np.zeros(shape=(self.number_of_samples, 1), dtype=np.float32)
+        self.number_of_predictions = data.shape[1] - 3  # CSV can contain predictions of other models in the last columns
+        self.predictions = np.zeros(shape=(self.number_of_samples, self.number_of_predictions), dtype=np.float32)
 
-        for index, csv_row in enumerate(data_csv.values):
-            image_id, male, age = csv_row
-            print(f'#{index} image_id: {image_id} male: {male} age: {age}')
+        for index, data_row in enumerate(data):
+            image_id, male, age, *self.predictions[index] = data_row
+            print(f'#{index} image_id: {image_id} male: {male} age: {age} \t\tpredictions: {self.predictions[index]}')
 
             self.image_ids[index, 0] = image_id
             self.males[index, 0] = male
@@ -42,6 +48,7 @@ class DataGenerator(keras.utils.Sequence):
         self._zero_image_age = 0
         if apply_age_normalization:
             self.ages = normalized_age(self.ages)
+            self.predictions = normalized_age(self.predictions)
             self._zero_image_age = normalized_age(self._zero_image_age)
 
         self.sample_indexes = np.arange(self.number_of_samples)
@@ -56,6 +63,8 @@ class DataGenerator(keras.utils.Sequence):
         batch_images = np.zeros(shape=(self.batch_size, *self.input_image_shape), dtype=np.float32)
         batch_males = np.zeros(shape=(self.batch_size, 1), dtype=np.uint8)
         batch_ages = np.full(shape=(self.batch_size, 1), fill_value=self._zero_image_age, dtype=np.float32)
+        batch_predictions = np.full(shape=(self.batch_size, self.number_of_predictions),
+                                    fill_value=self._zero_image_age, dtype=np.float32)
 
         # Generate image indexes of the batch
         batch_sample_indexes = self.sample_indexes[batch_index * self.batch_size:(batch_index + 1) * self.batch_size]
@@ -81,9 +90,13 @@ class DataGenerator(keras.utils.Sequence):
 
             batch_ages[item_number, 0] = age
             batch_males[item_number, 0] = male
+            batch_predictions[item_number] = np.copy(self.predictions[batch_sample_index])
 
         batch_images = self.preprocess_batch_images(batch_images)
-        return [batch_images, batch_males], batch_ages
+        batch_input = [batch_images, batch_males]
+        if batch_predictions.size != 0:
+            batch_input.append(batch_predictions)
+        return batch_input, batch_ages
 
     def on_epoch_end(self):
         """Shuffle files after each epoch"""
