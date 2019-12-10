@@ -30,12 +30,13 @@ class ModelTrainer:
     OUTPUT_IMAGE_CAM_OVERLAY_LAYER_NAME = ''
 
     def __init__(self, epochs: int = 100, lr: float = 1e-4, preprocess_batch_images: typing.Callable = None,
-                 apply_age_normalization: bool = True, model_custom_objects=None):
+                 apply_age_normalization: bool = True, model_custom_objects=None, combined_model: bool = False):
         self.epochs = epochs
         self.lr = lr
         self.preprocess_batch_images = preprocess_batch_images
         self.apply_age_nomalization = apply_age_normalization
         self.model_custom_objects = model_custom_objects
+        self.combined_model = combined_model
 
         self.model = None
 
@@ -116,7 +117,8 @@ class ModelTrainer:
         self._train_generator = train_utils.DataGenerator(
             self.IMAGE_DIR, self.TRAIN_DATA_CSV_PATH, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
             shuffle=True, preprocess_batch_images=self.preprocess_batch_images,
-            augmentation_transforms=self.AUGMENTATION_TRANSFORMS, apply_age_normalization=self.apply_age_nomalization)
+            augmentation_transforms=self.AUGMENTATION_TRANSFORMS, apply_age_normalization=self.apply_age_nomalization,
+            combined_model=self.combined_model)
 
     @property
     def valid_generator(self):
@@ -128,7 +130,8 @@ class ModelTrainer:
         self._valid_generator = train_utils.DataGenerator(
             self.IMAGE_DIR, self.VALID_DATA_CSV_PATH, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
             shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
-            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization)
+            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization,
+            combined_model=self.combined_model)
 
     @property
     def test_generator(self):
@@ -140,7 +143,8 @@ class ModelTrainer:
         self._test_generator = train_utils.DataGenerator(
             self.IMAGE_DIR, self.TEST_DATA_CSV_PATH, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
             shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
-            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization)
+            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization,
+            combined_model=self.combined_model)
 
     def _train_model(self):
         debug_utils.print_title(self._train_model.__name__)
@@ -165,19 +169,24 @@ class ModelTrainer:
         batch = generator.__getitem__(int(generator_len / 2))
         batch_input, batch_ages = batch
         batch_images, batch_males = batch_input[0], batch_input[1]
+        batch_predictions = batch_input[2] if self.combined_model else None
         debug_utils.print_info(batch_images, 'batch_images')
         debug_utils.print_info(batch_males, 'batch_males')
         debug_utils.print_info(batch_ages, 'batch_ages')
+        if batch_predictions is not None:
+            debug_utils.print_info(batch_predictions, 'batch_predictions')
 
-        # Save all images in batches
+        # Save all batch images
         for batch_image_index in range(len(batch_images)):
             image = batch_images[batch_image_index][...]
             male = batch_males[batch_image_index][0]
             age = batch_ages[batch_image_index][0]
 
-            debug_utils.print_info(image, 'image')
-            print(male, 'male')
-            print(age, 'age')
+            debug_utils.print_info(image, '\nimage')
+            print('male:', male)
+            print('age:', age)
+            if batch_predictions is not None:
+                print('predictions:', batch_predictions[batch_image_index])
 
             image = image_utils.normalized_image(image)
 
@@ -235,7 +244,8 @@ class ModelTrainer:
         generator = train_utils.DataGenerator(
             self.IMAGE_DIR, csv_path, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
             shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
-            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization)
+            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization,
+            combined_model=self.combined_model)
         predictions = self.model.predict_generator(generator=generator)
         # Remove last rows (predictions for black images, which can be,
         # if number of images is not divided by batch size)

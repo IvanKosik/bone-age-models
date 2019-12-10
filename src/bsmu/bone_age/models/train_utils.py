@@ -92,7 +92,8 @@ class DataGenerator(keras.utils.Sequence):
             batch_males[item_number, 0] = male
             batch_predictions[item_number] = np.copy(self.predictions[batch_sample_index])
 
-        batch_images = self.preprocess_batch_images(batch_images)
+        if self.preprocess_batch_images is not None:
+            batch_images = self.preprocess_batch_images(batch_images)
         batch_input = [batch_images, batch_males]
         if batch_predictions.size != 0:
             batch_input.append(batch_predictions)
