@@ -100,9 +100,9 @@ class ModelTrainer:
         monitor = 'val_age_mae' if self.apply_age_nomalization else 'val_loss'
         checkpoint_callback = keras.callbacks.ModelCheckpoint(filepath=str(self.model_path), monitor=monitor,
                                                               verbose=1, save_best_only=True)
-        reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(monitor=monitor, factor=0.75, patience=3,
+        reduce_lr_callback = keras.callbacks.ReduceLROnPlateau(monitor=monitor, factor=0.75, patience=4,
                                                                verbose=1, min_lr=1e-6)
-        early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=20)
+        early_stopping_callback = keras.callbacks.EarlyStopping(monitor=monitor, patience=25)
         tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(self.log_path), write_graph=False)
 
         return [checkpoint_callback, reduce_lr_callback, early_stopping_callback, tensorboard_callback]
@@ -241,21 +241,37 @@ class ModelTrainer:
         csv_data = pd.read_csv(str(csv_path))
         data = csv_data.to_numpy()
 
-        generator = train_utils.DataGenerator(
-            self.IMAGE_DIR, csv_path, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
-            shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
-            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization,
-            combined_model=self.combined_model)
-        predictions = self.model.predict_generator(generator=generator)
-        # Remove last rows (predictions for black images, which can be,
-        # if number of images is not divided by batch size)
-        predictions = predictions[:data.shape[0], ...]
-        if self.apply_age_nomalization:
-            predictions = train_utils.denormalized_age(predictions)
+        predictions = self.csv_predictions(csv_path)
 
         data_with_predictions = np.hstack((data, predictions))
         column_labels = np.append(csv_data.columns, self.model_name)
         return pd.DataFrame(data=data_with_predictions, columns=column_labels)
+
+    def csv_predictions(self, csv_path):
+        generator = train_utils.DataGenerator(
+            self.IMAGE_DIR, csv_path, self.BATCH_SIZE, self.MODEL_INPUT_IMAGE_SHAPE,
+            shuffle=False, preprocess_batch_images=self.preprocess_batch_images,
+            augmentation_transforms=None, apply_age_normalization=self.apply_age_nomalization,
+            combined_model=self.combined_model, discard_last_incomplete_batch=False)
+
+        predictions = self.model.predict_generator(generator=generator)
+        # Remove last rows (predictions for black images, which can be,
+        # if the number of images is not a multiple of the batch size)
+        predictions = predictions[:generator.number_of_samples]
+        if self.apply_age_nomalization:
+            predictions = train_utils.denormalized_age(predictions)
+        return predictions
+
+    def calculate_mae(self, csv_path):
+        csv_data = pd.read_csv(str(csv_path))
+        data = csv_data.to_numpy()
+        real_age_column_index = 2
+        real_ages = data[..., real_age_column_index].astype(np.float32)
+
+        predictions = np.squeeze(self.csv_predictions(csv_path))
+
+        mae = np.mean(np.absolute(real_ages - predictions))
+        return mae
 
     def test_model(self):
         ...

@@ -14,7 +14,8 @@ from bsmu.bone_age.models import image_utils
 class DataGenerator(keras.utils.Sequence):
     def __init__(self, image_dir: Path, data_csv_path: Path, batch_size: int, input_image_shape: tuple,
                  shuffle: bool, preprocess_batch_images: typing.Callable, augmentation_transforms=None,
-                 apply_age_normalization: bool = True, combined_model: bool = False):
+                 apply_age_normalization: bool = True, combined_model: bool = False,
+                 discard_last_incomplete_batch: bool = True):
         assert len(input_image_shape) == 3, 'Input image shape must have 3 dims: width, height and number of channels'
 
         self.image_dir = image_dir
@@ -24,6 +25,7 @@ class DataGenerator(keras.utils.Sequence):
         self.preprocess_batch_images = preprocess_batch_images
         self.augmentation_transforms = augmentation_transforms
         self.combined_model = combined_model
+        self.discard_last_incomplete_batch = discard_last_incomplete_batch
 
         data_frame = pd.read_csv(str(data_csv_path))
         data = data_frame.to_numpy()
@@ -56,7 +58,8 @@ class DataGenerator(keras.utils.Sequence):
 
     def __len__(self):
         """Return number of batches per epoch"""
-        return math.ceil(self.number_of_samples / self.batch_size)
+        number_of_batches = self.number_of_samples / self.batch_size
+        return math.floor(number_of_batches) if self.discard_last_incomplete_batch else math.ceil(number_of_batches)
 
     def __getitem__(self, batch_index):
         """Generate one batch of data"""
