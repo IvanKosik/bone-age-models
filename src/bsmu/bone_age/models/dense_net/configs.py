@@ -10,4 +10,4 @@ TEST_DATA_CSV_PATH = constants.TEST_DATA_CSV_PATH
 
 BATCH_SIZE = 7
 MODEL_NAME_PREFIX = 'DenseNet169'
-MODEL_NAME_POSTFIX = 'Test500_NormalizedAge_MoreAugments_Attempt2'
+MODEL_NAME_POSTFIX = 'AllImages'

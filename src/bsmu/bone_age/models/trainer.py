@@ -168,29 +168,35 @@ class ModelTrainer:
 
         batch = generator.__getitem__(int(generator_len / 2))
         batch_input, batch_ages = batch
-        batch_images, batch_males = batch_input[0], batch_input[1]
-        batch_predictions = batch_input[2] if self.combined_model else None
-        debug_utils.print_info(batch_images, 'batch_images')
+        batch_predictions = None
+        batch_images = None
+        if self.combined_model:
+            batch_males, batch_predictions = batch_input[0], batch_input[1]
+        else:
+            batch_images, batch_males = batch_input[0], batch_input[1]
+
+        if batch_images is not None:
+            debug_utils.print_info(batch_images, 'batch_images')
         debug_utils.print_info(batch_males, 'batch_males')
         debug_utils.print_info(batch_ages, 'batch_ages')
         if batch_predictions is not None:
             debug_utils.print_info(batch_predictions, 'batch_predictions')
 
         # Save all batch images
-        for batch_image_index in range(len(batch_images)):
-            image = batch_images[batch_image_index][...]
-            male = batch_males[batch_image_index][0]
-            age = batch_ages[batch_image_index][0]
+        for batch_sample_index in range(len(batch_males)):
+            if batch_images is not None:
+                image = batch_images[batch_sample_index][...]
+                debug_utils.print_info(image, '\nimage')
+                image = image_utils.normalized_image(image)
+                skimage.io.imsave(str(constants.TEST_GENERATOR_DIR / f'{batch_sample_index}.png'), image)
 
-            debug_utils.print_info(image, '\nimage')
+            male = batch_males[batch_sample_index][0]
+            age = batch_ages[batch_sample_index][0]
+
             print('male:', male)
             print('age:', age)
             if batch_predictions is not None:
-                print('predictions:', batch_predictions[batch_image_index])
-
-            image = image_utils.normalized_image(image)
-
-            skimage.io.imsave(str(constants.TEST_GENERATOR_DIR / f'{batch_image_index}.png'), image)
+                print('predictions:', batch_predictions[batch_sample_index])
 
     def create_batch_from_one_sample(self, image, male: bool):
         assert len(image.shape) == 2, 'one channel images are only supported'
@@ -215,7 +221,7 @@ class ModelTrainer:
     def generate_image_cam(self, image, male: bool):
         input_batch = self.create_batch_from_one_sample(image, male)
         cam_batch, output_age_batch, image_cam_overlay_batch = self.generate_cam_batch(input_batch)
-        return cam_batch[0], output_age_batch[0], \
+        return cam_batch[0], train_utils.denormalized_age(output_age_batch[0][0]), \
             None if image_cam_overlay_batch is None else image_cam_overlay_batch[0]
 
     def generate_cam_batch(self, input_batch):

@@ -97,9 +97,8 @@ class DataGenerator(keras.utils.Sequence):
 
         if self.preprocess_batch_images is not None:
             batch_images = self.preprocess_batch_images(batch_images)
-        batch_input = [batch_images, batch_males]
-        if batch_predictions.size != 0:
-            batch_input.append(batch_predictions)
+
+        batch_input = [batch_males, batch_predictions] if self.combined_model else [batch_images, batch_males]
         return batch_input, batch_ages
 
     def on_epoch_end(self):

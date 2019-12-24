@@ -11,7 +11,7 @@ class SimpleCombinedModelTrainer(trainer.ModelTrainer):
     IMAGE_DIR = configs.IMAGE_DIR
     TRAIN_DATA_CSV_PATH = configs.TRAIN_DATA_CSV_PATH
     VALID_DATA_CSV_PATH = configs.VALID_DATA_CSV_PATH
-###    TEST_DATA_CSV_PATH = configs.TEST_DATA_CSV_PATH
+    TEST_DATA_CSV_PATH = configs.TEST_DATA_CSV_PATH
 
     BATCH_SIZE = configs.BATCH_SIZE
     MODEL_INPUT_IMAGE_SHAPE = (500, 500, 3)
@@ -44,9 +44,9 @@ class SimpleCombinedModelTrainer(trainer.ModelTrainer):
     def create_model(self):
         super().create_model()
 
-        input_image = layers.Input(shape=self.MODEL_INPUT_IMAGE_SHAPE)
+        # input_image = layers.Input(shape=self.MODEL_INPUT_IMAGE_SHAPE)
 
-        input_predictions = layers.Input(shape=(4,), name='input_predictions')
+        input_predictions = layers.Input(shape=(2,), name='input_predictions')
 ##        input_prediction2 = layers.Input(shape=(1,), name='input_prediction2')
 
         input_male = layers.Input(shape=(1,), name='input_male')
@@ -65,7 +65,7 @@ class SimpleCombinedModelTrainer(trainer.ModelTrainer):
         x = layers.Dense(20, activation='relu')(x)
         output_age = layers.Dense(1, activation='linear', name='output_age')(x)
 
-        self.model = keras.models.Model(inputs=[input_image, input_male, input_predictions],
+        self.model = keras.models.Model(inputs=[input_male, input_predictions],
                                         outputs=output_age)
         self.model.summary(line_length=150)
 
