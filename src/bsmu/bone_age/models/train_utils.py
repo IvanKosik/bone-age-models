@@ -33,7 +33,7 @@ class DataGenerator(keras.utils.Sequence):
             data = data[:, :3]  # remove prediction columns
         self.number_of_samples = len(data)
 
-        self.image_ids = np.zeros(shape=(self.number_of_samples, 1), dtype=np.uint32)
+        self.image_ids = np.zeros(shape=(self.number_of_samples, 1), dtype=object)
         self.males = np.zeros(shape=(self.number_of_samples, 1), dtype=np.uint8)
         self.ages = np.zeros(shape=(self.number_of_samples, 1), dtype=np.float32)
         self.number_of_predictions = data.shape[1] - 3  # CSV can contain predictions of other models in the last columns
@@ -43,7 +43,7 @@ class DataGenerator(keras.utils.Sequence):
             image_id, male, age, *self.predictions[index] = data_row
             print(f'#{index} image_id: {image_id} male: {male} age: {age} \t\tpredictions: {self.predictions[index]}')
 
-            self.image_ids[index, 0] = image_id
+            self.image_ids[index, 0] = image_id if '.' in image_id else f'{image_id}.png'
             self.males[index, 0] = male
             self.ages[index, 0] = age
 
@@ -77,7 +77,7 @@ class DataGenerator(keras.utils.Sequence):
             male = self.males[batch_sample_index, 0]
             age = self.ages[batch_sample_index, 0]
 
-            image_path = self.image_dir / f'{image_id}.png'
+            image_path = self.image_dir / image_id
             image = skimage.io.imread(str(image_path))
             image = image_utils.normalized_image(image)
 
@@ -89,7 +89,8 @@ class DataGenerator(keras.utils.Sequence):
 
             image = image * 255
             image = np.stack((image,) * self.input_image_shape[2], axis=-1)
-            batch_images[item_number, ...] = image
+            if not self.combined_model:
+                batch_images[item_number, ...] = image
 
             batch_ages[item_number, 0] = age
             batch_males[item_number, 0] = male

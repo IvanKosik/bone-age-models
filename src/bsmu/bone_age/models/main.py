@@ -1,4 +1,5 @@
 from pathlib import Path
+import math
 
 import cv2
 import numpy as np
@@ -10,10 +11,10 @@ from bsmu.bone_age.models import debug_utils
 from bsmu.bone_age.models import image_utils
 from bsmu.bone_age.models import latin_utils
 
-# from bsmu.bone_age.models.combined.simple import trainer
+from bsmu.bone_age.models.combined.simple import trainer
 # from bsmu.bone_age.models.dense_net import trainer
 # from bsmu.bone_age.models.inception import trainer
-from bsmu.bone_age.models.xception import trainer
+# from bsmu.bone_age.models.xception import trainer
 # from bsmu.bone_age.models.stn import trainer
 from bsmu.bone_age.models import constants
 
@@ -91,21 +92,22 @@ def analyze_our_data(model_trainer, data_path):
         output_data_frame = output_data_frame.drop(columns='male')
         results_data_frame = results_data_frame.join(output_data_frame.set_index('id'), on='id')
     else:
+        output_data_frame.insert(2, 'boneage', 0)  # Add column boneage with zero values (need to use our DataGenerator)
         results_data_frame = output_data_frame
 
     results_data_frame.to_csv(results_csv_path, index=False)
 
 
 def main():
-    model_trainer = trainer.XceptionModelTrainer()
+    model_trainer = trainer.SimpleCombinedModelTrainer()
 
     # model_trainer.verify_generator(model_trainer.train_generator)
     # model_trainer.run()
     # exit()
 
-    model_trainer.load_model()
-    print(model_trainer.model_name)
-    model_trainer.model.summary(line_length=150)
+    # model_trainer.load_model()
+    # print(model_trainer.model_name)
+    # model_trainer.model.summary(line_length=150)
 
     # data_frame_with_predictions = model_trainer.data_frame_with_predictions(constants.TEST_DATA_CSV_PATH)
     # data_frame_with_predictions.to_csv(OUTPUT_PATH / 'all_test_with_predictions.csv', index=False)
@@ -120,7 +122,30 @@ def main():
     # crop_images_to_cam(model_trainer, constants.PART_TRAIN_DATA_CSV_PATH, cropped_path)
     # crop_images_to_cam(model_trainer, constants.PART_VALID_DATA_CSV_PATH, cropped_path)
 
-    analyze_our_data(model_trainer, TEMP_PATH / 'OurData_latin' / 'Avgust')
+    our_data_path = TEMP_PATH / 'OurData_latin'
+    for image_dir in our_data_path.iterdir():
+        # analyze_our_data(model_trainer, image_dir)
+
+        # Analyze using combo model
+        # model_trainer.IMAGE_DIR = image_dir
+        # data_frame_with_combo_predictions = model_trainer.data_frame_with_predictions(image_dir / 'results.csv')
+        # data_frame_with_combo_predictions.to_csv(image_dir / 'results.csv', index=False)
+
+        # Format to readable age
+        results = pd.read_csv(str(image_dir / 'results.csv'))
+        results_data = results.to_numpy()
+        columns_to_format = results_data[:, 3:]
+        formatted_columns = np.core.defchararray.add((columns_to_format // 12).astype('|S10'),
+                                                     np.full_like(columns_to_format, fill_value=' years ', dtype='|S10'))
+        formatted_columns = np.core.defchararray.add(formatted_columns,
+                                                     (columns_to_format % 12).astype('|S4'))
+        formatted_columns = np.core.defchararray.add(formatted_columns,
+                                                     np.full_like(columns_to_format, fill_value=' months ', dtype='|S10'))
+        formatted_columns = np.core.defchararray.decode(formatted_columns, encoding='utf-8')
+
+        results_data[:, 3:] = formatted_columns
+        formatted_data_frame = pd.DataFrame(data=results_data, columns=results.columns)
+        formatted_data_frame.to_csv(image_dir / 'formatted_results.csv', sep=';', index=False)
 
 
 if __name__ == '__main__':

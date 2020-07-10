@@ -34,7 +34,7 @@ class InceptionModelTrainer(trainer.ModelTrainer):
 
     def __init__(self, epochs: int = 100, lr: float = 1e-4):
         super().__init__(epochs, lr, preprocess_batch_images=inception_v3.preprocess_input,
-                         apply_age_normalization=False)
+                         apply_age_normalization=True)
 
     def create_model(self):
         super().create_model()
