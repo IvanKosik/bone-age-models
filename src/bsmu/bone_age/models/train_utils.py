@@ -42,8 +42,7 @@ class DataGenerator(keras.utils.Sequence):
         for index, data_row in enumerate(data):
             image_id, male, age, *self.predictions[index] = data_row
             print(f'#{index} image_id: {image_id} male: {male} age: {age} \t\tpredictions: {self.predictions[index]}')
-
-            self.image_ids[index, 0] = image_id if '.' in image_id else f'{image_id}.png'
+            self.image_ids[index, 0] = image_id if '.' in str(image_id) else f'{image_id}.png'
             self.males[index, 0] = male
             self.ages[index, 0] = age
 
@@ -79,7 +78,7 @@ class DataGenerator(keras.utils.Sequence):
 
             image_path = self.image_dir / image_id
             image = skimage.io.imread(str(image_path))
-            image = image_utils.normalized_image(image)
+            image = image_utils.normalized_image(image).astype(np.float32)
 
             if self.augmentation_transforms is not None:
                 image = augmentate_image(image, self.augmentation_transforms)

@@ -9,9 +9,9 @@ from bsmu.bone_age.models import image_utils
 from bsmu.bone_age.models import debug_utils
 
 
-OUTPUT_SIZE = (500, 500)
+OUTPUT_SIZE = (768, 768)
 SRC_IMAGE_PATH = Path(r'D:\Projects\bone-age-models\data\images')
-DST_IMAGE_PATH = Path(r'C:\MyDiskBackup\Projects\BoneAge\Data\SmallImages500')
+DST_IMAGE_PATH = Path(r'C:\MyDiskBackup\Projects\BoneAge\Data\SmallImages768_NoPads')
 
 
 def padded_image(image):
@@ -28,7 +28,7 @@ def convert_images(src_path: Path, dst_path: Path):
     for index, image_path in enumerate(src_path.iterdir()):
         print(index)
         image = skimage.io.imread(str(image_path))
-        image = padded_image(image)[0]
+###        image = padded_image(image)[0]
 
         image = image.astype(np.float64)
         # image = skimage.transform.resize(image, OUTPUT_SIZE, anti_aliasing=True, order=1).astype(np.float32)

@@ -160,13 +160,17 @@ class ModelTrainer:
         debug_utils.print_title(self._print_layers_info.__name__)
         debug_utils.print_layers_info(self.model)
 
-    def verify_generator(self, generator):
+    def verify_generator(self, generator, number_of_batches: int = 7):
         debug_utils.print_title(self.verify_generator.__name__)
 
         generator_len = len(generator)
         print('generator_len (number of batches per epoch):', generator_len)
 
-        batch = generator.__getitem__(int(generator_len / 2))
+        for batch_index in range(min(number_of_batches, generator_len)):
+            batch = generator.__getitem__(batch_index)
+            self.verify_batch(batch, str(batch_index))
+
+    def verify_batch(self, batch, batch_prefix: str):
         batch_input, batch_ages = batch
         batch_predictions = None
         batch_images = None
@@ -185,10 +189,10 @@ class ModelTrainer:
         # Save all batch images
         for batch_sample_index in range(len(batch_males)):
             if batch_images is not None:
-                image = batch_images[batch_sample_index][...]
+                image = batch_images[batch_sample_index]       #### [...]
                 debug_utils.print_info(image, '\nimage')
                 image = image_utils.normalized_image(image)
-                skimage.io.imsave(str(constants.TEST_GENERATOR_DIR / f'{batch_sample_index}.png'), image)
+                skimage.io.imsave(str(constants.TEST_GENERATOR_DIR / f'{batch_prefix}_{batch_sample_index}.png'), image)
 
             male = batch_males[batch_sample_index][0]
             age = batch_ages[batch_sample_index][0]

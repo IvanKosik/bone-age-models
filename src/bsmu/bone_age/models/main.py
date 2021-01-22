@@ -11,8 +11,8 @@ from bsmu.bone_age.models import debug_utils
 from bsmu.bone_age.models import image_utils
 from bsmu.bone_age.models import latin_utils
 
-from bsmu.bone_age.models.combined.simple import trainer
-# from bsmu.bone_age.models.dense_net import trainer
+# from bsmu.bone_age.models.combined.simple import trainer
+from bsmu.bone_age.models.dense_net import trainer
 # from bsmu.bone_age.models.inception import trainer
 # from bsmu.bone_age.models.xception import trainer
 # from bsmu.bone_age.models.stn import trainer
@@ -98,16 +98,46 @@ def analyze_our_data(model_trainer, data_path):
     results_data_frame.to_csv(results_csv_path, index=False)
 
 
+def count_children():
+    data_frame = pd.read_csv(r'D:\Projects\bone-age-models\data\csv\all\train.csv')
+    data = data_frame.to_numpy()
+    print('len:', len(data))
+    count_male = 0
+    count_female = 0
+    for index, data_row in enumerate(data):
+        image_id, male, age = data_row
+        if age <= 36:
+            if male:
+                count_male += 1
+            else:
+                count_female += 1
+    print('male:', count_male)
+    print('female:', count_female)
+
+
 def main():
-    model_trainer = trainer.SimpleCombinedModelTrainer()
+    model_trainer = trainer.DenseNetModelTrainer()
 
     # model_trainer.verify_generator(model_trainer.train_generator)
-    # model_trainer.run()
-    # exit()
+    model_trainer.run()
+    exit()
 
     # model_trainer.load_model()
     # print(model_trainer.model_name)
     # model_trainer.model.summary(line_length=150)
+
+    # model_trainer.create_model()
+    # model_trainer.model.summary(line_length=150)
+    # model_trainer.model.save(r'D:\Temp\TempBoneAgeModels\DenseNet_withInputShape.h5', include_optimizer=False)
+    # exit()
+
+    import keras
+    # m1 = keras.models.load_model(r'D:\Temp\TempBoneAgeModels\DenseNet169_500x500_b7_AllImages.h5', compile=False)
+    m2 = keras.models.load_model(r'D:\Temp\TempBoneAgeModels\DenseNet_withInputShape.h5', compile=False)
+    m2.load_weights(r'D:\Temp\TempBoneAgeModels\DenseNet169_500x500_b7_AllImages.h5')
+    m2.save(r'D:\Temp\TempBoneAgeModels\DenseNet_withInputShape___weighted.h5')
+    exit()
+
 
     # data_frame_with_predictions = model_trainer.data_frame_with_predictions(constants.TEST_DATA_CSV_PATH)
     # data_frame_with_predictions.to_csv(OUTPUT_PATH / 'all_test_with_predictions.csv', index=False)
